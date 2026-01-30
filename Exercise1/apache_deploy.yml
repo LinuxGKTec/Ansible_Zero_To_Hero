@@ -1,0 +1,48 @@
+—
+  – name: Enable internet services 
+    hosts: vm2.example.com
+    become: yes
+    tasks: 
+    – name: installs the latest versions of firewalld, apach2, mariadb-server, php, and php-mysqlnd packages
+      apt: 
+       name: 
+       – firewalld
+       – apach2
+       – mariadb-server
+       – php
+       – php-mysqlnd
+       state: latest
+    – name: firewalld service is enabled and running
+      service: 
+       name: firewalld
+       enabled: true
+       state: started
+    – name: Allow port 80 
+      firewalld: 
+       service: http
+       permanent: true
+       state: enabled
+       immediate: yes
+    – name: apach2 and mariadb services are enabled and running
+      service: 
+       name: 
+       – apache2
+       – mariadb
+       enabled: true
+       state: started
+    – name: Use the copy module to copy index.php file to /var/www/html/ on the managed host
+      copy: 
+       src: index.php
+       dest: /var/www/html/index.php
+    – name: Remove html.index file from Control node to Remote host
+      file: 
+       paht: /var/www/html/index.html
+       state: absent
+  – name: Test internet web server
+    hosts: vm3.example.com
+    become: yes
+    tasks: 
+    – name: connect to internet web server from vm3.example.com
+      uri: 
+       url: http://192.168.56.12
+       status_code: 200 
