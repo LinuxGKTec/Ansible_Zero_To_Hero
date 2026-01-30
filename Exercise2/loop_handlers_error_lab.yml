@@ -1,0 +1,91 @@
+---
+- name: Complete lab on loop handlers and error control
+  hosts: remote_hosts
+  vars_files:
+  - vars/vars.yml
+  tasks: 
+  # Fail Fasts Message
+  - name: Show Failed System Requirements Message
+    fail: 
+     msg: "The {{ inventory_hostname }} did not meet minimum reqs."
+    when: >
+     ansible_memtotal_mb < min_ram_mb or
+     ansible_distribution != "Ubuntu" 
+  - name: Ensure required packages are present
+    apt: 
+     name: "{{ packages }}"
+     state: latest
+  - name: Ensure services are started and enabled
+    service: 
+     name: "{{ item }}"
+     state: started
+     enabled: yes
+    loop: "{{ services }}" 
+  #Block of config tasks
+  - name: Setting up the SSL cert directory and config files
+    delegate_to: localhost
+    block: 
+    - name:  Create Priavte Key
+      community.crypto.openssl_privatekey:
+        path: "{{ domain_name }}.key"
+        size: 2048
+    - name: Create CSR (Certificate Signing Request)
+      community.crypto.openssl_csr:
+        path: "{{ domain_name }}.csr"
+        privatekey_path: "{{ domain_name }}.key"
+        common_name: "{{ domain_name }}"
+    - name: Generate Self-Signed Certificate
+      community.crypto.x509_certificate:
+        path: "{{ domain_name }}.crt"
+        privatekey_path: "./{{ domain_name }}.key"
+        csr_path: "{{ domain_name }}.csr"
+        provider: selfsigned
+
+  - name: Deploy to Remote Host (vm2)
+    block: 
+    - name: Ensure remote directories exist
+      file:
+       path: "{{ item }}"
+       state: directory
+       mode: '0755'
+      loop:
+      - "{{ ssl_cert_dir }}"
+      - "{{ ssl_key_dir }}"
+    - name: Copy Web Configuration files to vm2
+      copy: 
+       src: "{{ item.src }}"
+       dest: "{{ item.dest}}"
+       mode: '0644'
+      loop: "{{ web_config_files }}"
+    rescue:
+    - name: Configuration Error Message
+      debug:
+       msg: >
+         One or more of the configuration
+         changes failed, but the web service
+         is still active.
+  - name: Ensure web server ports are open (UFW)
+    ufw:
+      rule: allow
+      port: "{{ item }}"
+      proto: tcp
+    loop:
+      - 22
+      - 80
+      - 443
+  - name: Enable Firewall
+    ufw: 
+      state: enabled
+  - name: copy index.php from local to rmeote machine
+    copy: 
+     src: index.php
+     dest: /var/www/html/index.php
+     owner: www-data
+     group: www-data
+     mode: '0644'
+    notify: restart web service
+  handlers:
+  - name: restart web service
+    service:
+       name: apache2
+       state: restarted
