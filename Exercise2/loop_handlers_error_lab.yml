@@ -84,6 +84,10 @@
      group: www-data
      mode: '0644'
     notify: restart web service
+  - name: Remove 'html.index' file from Control node to Remote host
+    file:
+     path: '/var/www/html/index.html'
+     state: absent
   handlers:
   - name: restart web service
     service:
