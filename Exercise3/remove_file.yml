@@ -1,0 +1,9 @@
+---
+- name: Use the file module to remove a file
+  hosts: rhel_hosts
+  tasks: 
+  - name: Remove a file from managed hosts
+    file: 
+     path: /home/devops/users.txt
+     state: absent
+
